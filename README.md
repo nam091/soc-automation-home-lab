@@ -2,8 +2,10 @@
 
 ## 1. Giới thiệu
 
-### 1.1 Tổng quan lab
-Lab SOC Automation mình làm nhằm mục tiêu tự động hóa gần như toàn bộ quy trình vận hành SOC. Windows 10 sẽ simulate attack qua Sysmon, Wazuh thu thập và bắn alert dựa trên rule mạnh, Shuffle xử lý logic (check VT, tạo case), TheHive lưu trữ và quản lý incident. Cách tiếp cận là "just enough automation" – đủ để giảm việc tay mà vẫn kiểm soát được.
+### 1.1 Tổng quan
+Project SOC Automation này mình làm để xây dựng một workflow tự động cho Security Operations Center (SOC). Nó giúp streamline việc monitor event, alerting và incident response luôn. Mình dùng bộ công cụ open-source mạnh như Wazuh, Shuffle, và TheHive. Cụ thể là Windows 10 client chạy Sysmon generate event chi tiết, Wazuh thu thập + phân tích + alert, Shuffle tự động hóa workflow, TheHive quản lý case và response.
+
+Cách tiếp cận là "just enough automation" – đủ để giảm việc tay mà vẫn kiểm soát được.
 
 
 
@@ -12,6 +14,14 @@ Lab SOC Automation mình làm nhằm mục tiêu tự động hóa gần như to
 - **Tối ưu alerting:** Tự động sinh alert và forward luôn, giảm thời gian response, tránh miss incident quan trọng. Mình thấy cái này giảm workload SOC analyst đi đáng kể.
 - **Tăng khả năng incident response:** Tự động trigger action khi có incident, phản ứng nhanh, nhất quán và hiệu quả hơn.
 - **Làm SOC hiệu quả hơn:** Automate mấy task routine để anh em tập trung vào phân tích sâu và cải tiến quy trình.
+
+Những gì mình đạt được từ project này:
+1. Windows + Sysmon + Wazuh agent.
+2. Wazuh server thu thập event.
+3. TheHive quản lý incident.
+4. Custom rule detect Mimikatz bằng originalFileName (khá hay).
+5. Shuffle SOAR automate toàn bộ flow.
+6. Integrate VirusTotal + email notification.
 
 ## 2. Những thứ cần chuẩn bị
 
@@ -43,29 +53,36 @@ Lab SOC Automation mình làm nhằm mục tiêu tự động hóa gần như to
 **3.1.1 Cài Windows 10 trên VMware:**
 Mình tạo VM Windows 10 trước. 
 
-![Windows 10 Installation](./images/Pasted%20image%2020240603131110.png)
+![Windows 10 Pro](./images/README.md/img-20260410202005.png)
+
+
 
 **3.1.2 Tải Sysmon:**
 Tải từ Microsoft Sysinternals.
 
-![Sysmon Installation](./images/Pasted%20image%2020240603131150.png)
+![Sysmon download](./images/README.md/img-20260410202125.png)
+
 
 **3.1.3 Tải config Sysmon Modular từ GitHub của olafhartong:**
 Config này hay lắm, detect được nhiều threat.
 
-![Sysmon Modular Config](./images/Pasted%20image%2020240603131815.png)
-![Sysmon Modular Config Files](./images/Pasted%20image%2020240603132002.png)
+![Img](./images/README.md/img-20260410202258.png)
+![Img](./images/README.md/img-20260410202412.png)
+
 
 **3.1.4 Giải nén Sysmon và mở PowerShell Administrator, cd vào thư mục:**
 Lưu ý quyền admin rất quan trọng.
 
-![Extract Sysmon Zip](./images/Pasted%20image%2020240603133020.png)
+![Img](./images/README.md/img-20260410202752.png)
+![Img](./images/README.md/img-20260410202808.png)
+
 
 **3.1.5 Copy file config sysmonconfig.xml vào cùng thư mục.**
 
 **3.1.6 Check xem Sysmon đã cài chưa (Services + Event Viewer):**
 
-![Check Sysmon Installation](./images/Pasted%20image%2020240603133433.png)
+![Img](./images/README.md/img-20260410203001.png)
+
 
 **3.1.7 Chưa có thì cài bằng lệnh:**
 ```
@@ -81,38 +98,17 @@ Lưu ý quyền admin rất quan trọng.
 Xong bước này Windows client của mình sẵn sàng. Tiếp theo setup Wazuh.
 
 ### 3.2 Bước 2: Setup Wazuh Server
-**3.2.1 Tạo Droplet trên DigitalOcean (hoặc VM local cũng được):**
-Mình dùng cloud cho nhanh.
+**3.2.1 Cài Ubuntu trên VMware:**
 
-![Create Droplet](./images/Pasted%20image%2020240603215218.png)
+![Img](./images/README.md/img-20260410204040.png)
 
-Chọn Ubuntu 22.04:
-
-![Select Ubuntu](./images/Pasted%20image%2020240603220120.png)
-
-Đặt tên "Wazuh", tạo root password:
-
-![Create Wazuh Droplet](./images/Pasted%20image%2020240603220521.png)
-
-**3.2.2 Setup Firewall:**
-Quan trọng lắm anh em, chỉ allow IP của mình thôi để tránh scan.
-
-![Create Firewall](./images/Pasted%20image%2020240603220742.png)
-![Set Inbound Rules](./images/Pasted%20image%2020240603220920.png)
-![Apply Firewall](./images/Pasted%20image%2020240603221926.png)
-![Firewall Protection](./images/Pasted%20image%2020240603222113.png)
-
-**3.2.3 SSH vào server:**
-Dùng Droplet Console hoặc SSH client.
-
-![Launch Droplet Console](./images/Pasted%20image%2020240603223020.png)
 
 **3.2.4 Update system:**
 ```
 sudo apt-get update && sudo apt-get upgrade
 ```
 
-**3.2.5 Cài Wazuh All-in-One (Docker) - Phần core:**
+**3.2.5 Cài Wazuh All-in-One - Phần core:**
 
 Mình hay dùng cách All-in-One cho lab local vì nhanh và gọn:
 
@@ -145,53 +141,99 @@ Lưu password ngay kẻo phải reset sau này.
 **3.2.6 Truy cập web interface:**
 Dùng https://IP-cua-Wazuh, bypass cert warning.
 
-![Wazuh Login](./images/Pasted%20image%2020240603225355.png)
 ![Wazuh Login Continue](./images/Pasted%20image%2020240603225424.png)
 ![Wazuh Dashboard](./images/Pasted%20image%2020240603225621.png)
 
 Xong Wazuh. Tiếp tục TheHive.
 
 ### 3.3 Bước 3: Cài TheHive
+Vì máy mình dung lượng có hạn nên mình cài trên DigitalOcean
+Xem cài đặt chi tiết tại: https://docs.strangebee.com/thehive/installation/installation-guide-linux-standalone-server/
 **3.3.1 Tạo Droplet mới cho TheHive:**
 Tương tự, Ubuntu 22.04, attach firewall cũ.
 
-![Create TheHive Droplet](./images/Pasted%20image%2020240603230036.png)
+![Img](./images/README.md/img-20260410204602.png)
+
+Lưu ý nhớ setup firewall cho an toàn nhé
+![Img](./images/README.md/img-20260410210250.png)
+![Img](./images/README.md/img-20260410210308.png)
+
 
 **3.3.2 Cài dependencies:**
 ```
 apt install wget gnupg apt-transport-https git ca-certificates ca-certificates-java curl software-properties-common python3-pip lsb-release
 ```
 
-![Install Dependencies](./images/Pasted%20image%2020240603230509.png)
+![Img](./images/README.md/img-20260410210342.png)
+
 
 **3.3.3 Cài Java 11 (Amazon Corretto):**
 Mình paste lệnh đầy đủ ở note này luôn cho anh em copy.
+```bash
+wget -qO- https://apt.corretto.aws/corretto.key | sudo gpg --dearmor -o /usr/share/keyrings/corretto.gpg
+echo "deb [signed-by=/usr/share/keyrings/corretto.gpg] https://apt.corretto.aws stable main" | sudo tee -a /etc/apt/sources.list.d/corretto.sources.list
+sudo apt update
+sudo apt install java-common java-11-amazon-corretto-jdk
+echo JAVA_HOME="/usr/lib/jvm/java-11-amazon-corretto" | sudo tee -a /etc/environment
+export JAVA_HOME="/usr/lib/jvm/java-11-amazon-corretto"
+```
+
 
 **3.3.4 Cài Cassandra:**
 Database cho TheHive.
+```bash
+
+wget -qO - https://downloads.apache.org/cassandra/KEYS | sudo gpg --dearmor -o /usr/share/keyrings/cassandra-archive.gpg
+echo "deb [signed-by=/usr/share/keyrings/cassandra-archive.gpg] https://debian.cassandra.apache.org 40x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+sudo apt update
+sudo apt install cassandra
+
+```
 
 **3.3.5 Cài Elasticsearch:**
 Dùng version 7.x.
+```bash
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg
+sudo apt-get install apt-transport-https
+echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-7.x.list
+sudo apt update
+sudo apt install elasticsearch
+```
 
-**3.3.6 (Optional) Tune JVM cho Elasticsearch:**
-Tạo file jvm.options với -Xms2g -Xmx2g, tùy resource máy anh em.
+**3.3.6 (Tùy chọn) Tune JVM cho Elasticsearch:**
+Tạo file jvm.options với -Xms2g -Xmx2g, file ở thư mục `/etc/elasticsearch/jvm.options.d`
+```bash
+-Dlog4j2.formatMsgNoLookups=true
+-Xms2g
+-Xmx2g
+```
 
 **3.3.7 Cài TheHive:**
 Lệnh official từ strangebee.
+```bash
+sudo apt update
+sudo apt install wget curl gnupg coreutils apt-transport-https git ca-certificates ca-certificates-java software-properties-common python3-pip lsb-release unzip
+```
+
+Truy cập tại cổng mặc định 9000:
+
+```bash
+nano /etc/cassandra/cassandra.yaml
+```
 
 Default credential:
 - Username: admin@thehive.local
 - Password: secret
 
-![TheHive Login](./images/Pasted%20image%2020240603231319.png)
 
 ### 3.4 Bước 4: Configure TheHive + Wazuh
 **3.4.1 Config Cassandra:**
 Edit cassandra.yaml, set listen_address, rpc_address, seeds thành public IP của TheHive. 
 
-![Cassandra Configuration](./images/Pasted%20image%2020240603231723.png)
-![Listen Address](./images/Pasted%20image%2020240603232121.png)
-![Seed Provider](./images/Pasted%20image%2020240603232508.png)
+![Img](./images/README.md/img-20260410223207.png)
+![Img](./images/README.md/img-20260410223335.png)
+![Img](./images/README.md/img-20260410223423.png)
+
 
 Restart và clear data cũ:
 ```
@@ -201,27 +243,56 @@ systemctl start cassandra.service
 systemctl status cassandra.service
 ```
 
-![Cassandra Service Status](./images/Pasted%20image%2020240603232813.png)
+![Img](./images/README.md/img-20260410223521.png)
+
 
 **3.4.2 Config Elasticsearch:**
 Edit elasticsearch.yml, set network.host = IP, cluster.initial_master_nodes...
+```bash
+nano /etc/elasticsearch/elasticsearch.yml
+```
 
-![Elasticsearch Configuration](./images/Pasted%20image%2020240603233522.png)
-![Elasticsearch Service Status](./images/Pasted%20image%2020240603233935.png)
+
+
+![Img](./images/README.md/img-20260410223716.png)
+
+Khởi động lại:
+```bash
+systemctl start elasticsearch
+systemctl enable elasticsearch
+```
+
+
+![Img](./images/README.md/img-20260410223834.png)
+
 
 **3.4.3 Config TheHive:**
-Chown permission trước:
+Kiểm tra thư mục trước:
+```bash
+ls -la /opt/thp
+```
+
+Chown permission:
 ```
 chown -R thehive:thehive /opt/thp
 ```
 
+![Img](./images/README.md/img-20260410223928.png)
+
 Edit /etc/thehive/application.conf, set IP, cluster.name, baseUrl...
 
-![TheHive Configuration](./images/Pasted%20image%2020240603234256.png)
-![TheHive Directory Permissions](./images/Pasted%20image%2020240603234450.png)
-![Change TheHive Directory Permissions](./images/Pasted%20image%2020240603235441.png)
+```bash
+nano /etc/thehive/application.conf
+```
+
+![Img](./images/README.md/img-20260410224212.png)
 
 Start service và check status.
+```bash
+systemctl start thehive
+systemctl enable thehive
+```
+
 
 ![TheHive Service Status](./images/Pasted%20image%2020240603235616.png)
 
@@ -248,7 +319,7 @@ Start service:
 
 Check agent active:
 
-![Wazuh Agent Connected](./images/Pasted%20image%2020240604002744.png)
+![Img](./images/README.md/img-20260410220116.png)
 ![Wazuh Agent Status](./images/Pasted%20image%2020240604002929.png)
 
 ## 4. Generate Telemetry & Custom Alert
@@ -349,6 +420,8 @@ Configure TheHive action trong Shuffle với JSON payload chi tiết.
 Thêm Email notification.
 
 **Mẹo:** Nếu TheHive không nhận alert thì check firewall allow port 9000 từ mọi nơi (hoặc IP Shuffle).
+
+Workflow tự động detect Mimikatz → check VT → tạo case trong TheHive → gửi mail thông báo. Rất thực tế và hữu ích cho home lab.
 
 ## 6. Kết luận
 Mình đã setup xong SOC Automation Lab với Wazuh, TheHive, Shuffle. Workflow tự động detect Mimikatz → check VT → tạo case trong TheHive → gửi mail thông báo. Rất thực tế và hữu ích cho home lab.

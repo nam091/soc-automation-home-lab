@@ -31,3 +31,4 @@ jspm_packages/
 # Linux/Mac generated files
 *.swp
 *~
+*.backup_*
